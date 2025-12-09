@@ -332,9 +332,19 @@ def fetch_review_comments_graphql(owner: str, repo: str, pr_number: str) -> list
             # Collect all comments for this thread with pagination
             comments_after: str | None = None
             while True:
-                # Get first page of comments from the thread
-                comment_nodes = (thread.get("comments") or {}).get("nodes") or []
-                comments_page_info = (thread.get("comments") or {}).get("pageInfo") or {}
+                if comments_after is None:
+                    # First page comes embedded in the thread payload
+                    comment_nodes = (thread.get("comments") or {}).get("nodes") or []
+                    comments_page_info = (thread.get("comments") or {}).get("pageInfo") or {}
+                else:
+                    # Subsequent pages come from the GraphQL helper
+                    comment_nodes, has_next_comment_page, next_comment_cursor = _fetch_thread_comments_page(
+                        owner, repo, pr_number, comments_after
+                    )
+                    comments_page_info = {
+                        "hasNextPage": has_next_comment_page,
+                        "endCursor": next_comment_cursor,
+                    }
                 
                 for comment in comment_nodes:
                     author_login = (comment.get("author") or {}).get("login", "unknown")
@@ -355,29 +365,8 @@ def fetch_review_comments_graphql(owner: str, repo: str, pr_number: str) -> list
                 if not comments_page_info.get("hasNextPage"):
                     break
                 
-                # Fetch next page of comments
+                # Prepare next page cursor
                 comments_after = comments_page_info.get("endCursor")
-                comment_nodes, has_next_comment_page, next_comment_cursor = (
-                    _fetch_thread_comments_page(owner, repo, pr_number, comments_after)
-                )
-                
-                for comment in comment_nodes:
-                    author_login = (comment.get("author") or {}).get("login", "unknown")
-                    review_comments.append(
-                        {
-                            "path": path,
-                            "line": line,
-                            "start_line": start_line,
-                            "original_line": line,
-                            "diff_hunk": comment.get("diffHunk"),
-                            "user": {"login": author_login},
-                            "body": comment.get("body", ""),
-                            "url": comment.get("url"),
-                        }
-                    )
-                
-                if not has_next_comment_page:
-                    break
         
         if not has_next_thread_page:
             break

@@ -17,6 +17,8 @@ from . import (
     run,
     stage_changes,
 )
+
+
 def get_issue_linked_branches(issue_number: str) -> list[str]:
     """Get list of branches linked to this issue in GitHub.
 
@@ -46,8 +48,12 @@ def get_issue_linked_branches(issue_number: str) -> list[str]:
                 continue
             branches.append(line.split()[0])
         return branches
-    except Exception:
-        # If gh command fails or issue has no linked branches, return empty list
+    except Exception as exc:
+        # If gh command fails or issue has no linked branches, log and return empty list
+        print(
+            f"Warning: unable to read linked branches for issue {issue_number}: {exc}",
+            file=sys.stderr,
+        )
         return []
 
 

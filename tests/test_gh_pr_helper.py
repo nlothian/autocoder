@@ -477,8 +477,10 @@ class TestFetchReviewCommentsGraphQL:
         assert len(result) == 2
         assert result[0]["user"]["login"] == "alice"
         assert result[1]["user"]["login"] == "bob"
-        # Verify comment pagination was called
+        # Verify comment pagination was called with the endCursor from the first page
         mock_fetch_comments.assert_called_once()
+        args = mock_fetch_comments.call_args[0]
+        assert args[0:4] == ("owner", "repo", "10", "comment_cursor")
 
 
 class TestFormatCommentsAsMarkdown:

@@ -13,6 +13,7 @@ DEFAULT_REQUIRED_COMMANDS = ["gh", "llm"]
 
 
 def check_commands_available(required: Iterable[str] | None = None) -> None:
+    """Ensure required CLI commands are available in PATH."""
     commands = list(required) if required is not None else DEFAULT_REQUIRED_COMMANDS
     missing = [cmd for cmd in commands if shutil.which(cmd) is None]
     if missing:
@@ -32,6 +33,7 @@ def ensure_env() -> None:
 
 
 def run(cmd: list[str], *, input_text: str | None = None, capture_output: bool = True) -> str:
+    """Run a subprocess command and raise on non-zero exit."""
     result = subprocess.run(
         cmd,
         input=input_text.encode("utf-8") if input_text is not None else None,
@@ -48,10 +50,12 @@ def run(cmd: list[str], *, input_text: str | None = None, capture_output: bool =
 
 
 def stage_changes() -> None:
+    """Stage all changes in the repo."""
     run(["git", "add", "-A"], capture_output=False)
 
 
 def has_staged_changes() -> bool:
+    """Return True when there are staged changes."""
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
         stdout=subprocess.PIPE,
@@ -61,11 +65,13 @@ def has_staged_changes() -> bool:
 
 
 def get_repo_root() -> Path:
+    """Return the repository root Path."""
     output = run(["git", "rev-parse", "--show-toplevel"]).strip()
     return Path(output)
 
 
 def get_owner_repo(remote: str = "origin") -> tuple[str, str]:
+    """Return (owner, repo) for the given git remote."""
     remote = remote or "origin"
     try:
         url = run(["git", "config", "--get", f"remote.{remote}.url"]).strip()
