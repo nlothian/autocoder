@@ -24,6 +24,7 @@ Install the following CLIs and ensure they are available on `PATH`:
 - `kilocode` (Kilocode automation)
 - `claude` (Claude automation)
 - `codex` (ChatGPT Codex CLI)
+- `vibe` (Mistral Vibe CLI)
 
 Environment variables:
 
@@ -45,6 +46,8 @@ Run directly from the repo without installing:
    uv tool run --from ./ address-pr-comments-with-claude 1011
    uv tool run --from ./ fix-issue-with-codex 1213
    uv tool run --from ./ address-pr-comments-with-codex 1415
+   uv tool run --from ./ fix-issue-with-mistral-vibe 1617
+   uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
    uv tool run --from ./ gh-pr-helper owner/repo/pull/42
    uv tool run --from ./ generate-changelog
    ```
@@ -63,6 +66,8 @@ uv tool run --from ./ fix-issue-with-claude 789
 uv tool run --from ./ address-pr-comments-with-claude 1011
 uv tool run --from ./ fix-issue-with-codex 1213
 uv tool run --from ./ address-pr-comments-with-codex 1415
+uv tool run --from ./ fix-issue-with-mistral-vibe 1617
+uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
 uv tool run --from ./ gh-pr-helper owner/repo/pull/42
 uv tool run --from ./ generate-changelog
 ```
@@ -197,6 +202,41 @@ uv tool run --from ./ fix-issue-with-claude 123
 Runs the PR comment workflow but drives the Claude headless CLI. It reads PR
 feedback, prepares condensed instructions, passes them to Claude, stages and
 commits updates, and pushes them upstream.
+
+## Mistral Vibe tool
+
+Both Mistral Vibe workflows call `vibe --prompt "<issue or PR context>"`, so ensure
+the `vibe` CLI is authenticated before running them.
+
+### `fix-issue-with-mistral-vibe`
+
+Identical to the Kilocode/Claude issue helpers but shells out to `vibe`. It
+collects the issue context, generates or selects a `fix-mistral-vibe/<issue>` branch,
+invokes:
+
+```bash
+vibe --prompt "You are Mistral Vibe running headless. …"
+```
+
+with the issue text, then stages, commits, pushes, and opens a PR.
+
+Usage:
+
+```bash
+uv tool run --from ./ fix-issue-with-mistral-vibe 1617
+```
+
+### `address-pr-comments-with-mistral-vibe`
+
+Runs the PR comments workflow but pipes the generated change instructions to
+`vibe --prompt`. After Vibe finishes, the helper stages the edits, AI-generates
+a commit message, and pushes back to the PR branch.
+
+Usage:
+
+```bash
+uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
+```
 
 Usage:
 
