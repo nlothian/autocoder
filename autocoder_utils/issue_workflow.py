@@ -125,6 +125,8 @@ class IssueWorkflowConfig:
     input_instruction: str | None = None
     use_new_branch: bool = False
     existing_branch: str | None = None
+    input_via_prompt_argument: bool = False
+    prompt_arg_name: str | None = None
 
     def required_cmds(self) -> list[str]:
         """Commands that must be present before executing the workflow."""
@@ -237,21 +239,28 @@ def get_or_create_branch(issue_number: str, config: IssueWorkflowConfig) -> str:
 def run_tool(issue_content: str, config: IssueWorkflowConfig) -> None:
     """Run the configured tool with optional timeout and session management."""
     cmd = list(config.tool_cmd)
+    input_text = issue_content
 
     # Add JSON output flag if configured
     if config.use_json_output and "--output" not in cmd:
         cmd.extend(["--output", "json"])
 
+    if config.input_via_prompt_argument:
+        if config.prompt_arg_name:
+            cmd.append(config.prompt_arg_name)
+        cmd.append(issue_content)
+        input_text = None
+
     # If no timeout, run normally
     if config.timeout_seconds is None:
-        run(cmd, input_text=issue_content, capture_output=False)
+        run(cmd, input_text=input_text, capture_output=False)
         return
 
     # Run with timeout
     try:
         process = subprocess.Popen(
             cmd,
-            stdin=subprocess.PIPE,
+            stdin=subprocess.PIPE if input_text is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -259,7 +268,8 @@ def run_tool(issue_content: str, config: IssueWorkflowConfig) -> None:
 
         # Send input and wait with timeout
         try:
-            stdout, stderr = process.communicate(input=issue_content, timeout=config.timeout_seconds)
+            communicate_input = input_text if input_text is not None else None
+            stdout, stderr = process.communicate(input=communicate_input, timeout=config.timeout_seconds)
 
             # If using JSON output, try to parse and display
             if stdout:

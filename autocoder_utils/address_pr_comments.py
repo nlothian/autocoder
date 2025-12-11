@@ -83,6 +83,12 @@ class PRCommentWorkflowConfig:
     debug: bool = False
     """Enable debug mode with step-by-step execution and detailed output."""
 
+    input_via_prompt_argument: bool = False
+    """Whether to pass the formatted comments as a CLI argument instead of stdin."""
+
+    prompt_arg_name: str | None = None
+    """Optional flag name placed before the prompt argument when using argument mode."""
+
 
 def get_pr_info(owner: str, repo: str, pr_number: str) -> dict:
     """
@@ -233,10 +239,17 @@ def run_tool_with_changes(changes_to_make: str, config: PRCommentWorkflowConfig)
         return
 
     cmd = list(config.tool_cmd)
+    tool_input = changes_to_make
 
     # Add JSON output flag if configured
     if config.use_json_output and "--output" not in cmd:
         cmd.extend(["--output", "json"])
+
+    if config.input_via_prompt_argument:
+        if config.prompt_arg_name:
+            cmd.append(config.prompt_arg_name)
+        cmd.append(changes_to_make)
+        tool_input = None
 
     debug_step(
         f"Running {config.tool_name}",
@@ -246,14 +259,14 @@ def run_tool_with_changes(changes_to_make: str, config: PRCommentWorkflowConfig)
 
     # If no timeout, run normally
     if config.timeout_seconds is None:
-        run(cmd, input_text=changes_to_make, capture_output=False)
+        run(cmd, input_text=tool_input, capture_output=False)
         return
 
     # Run with timeout
     try:
         process = subprocess.Popen(
             cmd,
-            stdin=subprocess.PIPE,
+            stdin=subprocess.PIPE if tool_input is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -261,7 +274,8 @@ def run_tool_with_changes(changes_to_make: str, config: PRCommentWorkflowConfig)
 
         # Send input and wait with timeout
         try:
-            stdout, stderr = process.communicate(input=changes_to_make, timeout=config.timeout_seconds)
+            communicate_input = tool_input if tool_input is not None else None
+            stdout, stderr = process.communicate(input=communicate_input, timeout=config.timeout_seconds)
 
             # If using JSON output, try to parse and display
             if stdout:
@@ -639,6 +653,25 @@ def address_pr_comments_with_amp(
             "below by editing this repository, running tests as appropriate, and summarizing "
             "your updates before finishing."
         ),
+        debug=debug,
+    )
+    run_pr_comment_workflow(pr_number, config)
+
+
+def address_pr_comments_with_mistral_vibe(
+    pr_number: str | None = None, timeout_seconds: int | None = 180, debug: bool = False
+) -> None:
+    """Address PR comments using the Mistral Vibe CLI."""
+    config = PRCommentWorkflowConfig(
+        tool_name="mistral-vibe",
+        tool_cmd=["vibe"],
+        timeout_seconds=timeout_seconds,
+        input_instruction=(
+            "You are Mistral Vibe running headless. Address the PR review comments below by editing this "
+            "repository, running tests when helpful, and summarizing your updates before finishing."
+        ),
+        input_via_prompt_argument=True,
+        prompt_arg_name="--prompt",
         debug=debug,
     )
     run_pr_comment_workflow(pr_number, config)

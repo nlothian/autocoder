@@ -10,6 +10,7 @@ from .address_pr_comments import (
     address_pr_comments_with_codex as _address_pr_comments_with_codex,
     address_pr_comments_with_claude as _address_pr_comments_with_claude,
     address_pr_comments_with_kilocode as _address_pr_comments_with_kilocode,
+    address_pr_comments_with_mistral_vibe as _address_pr_comments_with_mistral_vibe,
 )
 from .change_tracker import generate_changelog as _generate_changelog
 from .gh_pr_helper import gh_pr_helper as _gh_pr_helper
@@ -46,6 +47,8 @@ def _run_issue_workflow(
     input_instruction: str | None = None,
     session_dir: Path | None = None,
     use_json_output: bool = False,
+    input_via_prompt_argument: bool = False,
+    prompt_arg_name: str | None = None,
 ) -> None:
     """Common issue workflow runner."""
     arg_list, prog = _parser_inputs(argv)
@@ -82,6 +85,8 @@ def _run_issue_workflow(
         use_json_output=use_json_output,
         use_new_branch=args.newbranch,
         existing_branch=args.existingbranch,
+        input_via_prompt_argument=input_via_prompt_argument,
+        prompt_arg_name=prompt_arg_name,
     )
     run_issue_workflow(args.issue, config)
 
@@ -148,6 +153,22 @@ def fix_issue_with_amp(argv: Sequence[str] | None = None) -> None:
             "You are Amp running headless. Fix the GitHub issue described below using this "
             "repository. Apply edits, run relevant tests, and finish with a brief summary."
         ),
+    )
+
+
+def fix_issue_with_mistral_vibe(argv: Sequence[str] | None = None) -> None:
+    """CLI wrapper for the Mistral Vibe issue workflow."""
+    _run_issue_workflow(
+        argv,
+        tool_cmd=["vibe"],
+        branch_prefix="fix-mistral-vibe",
+        tool_name="mistral-vibe",
+        input_instruction=(
+            "You are Mistral Vibe running headless. Fix the GitHub issue described below using this "
+            "repository. Apply edits, run relevant tests, and finish with a concise summary."
+        ),
+        input_via_prompt_argument=True,
+        prompt_arg_name="--prompt",
     )
 
 
@@ -226,6 +247,16 @@ def address_pr_comments_with_amp(argv: Sequence[str] | None = None) -> None:
         argv,
         _address_pr_comments_with_amp,
         "Amp headless mode",
+        default_timeout=180,
+    )
+
+
+def address_pr_comments_with_mistral_vibe(argv: Sequence[str] | None = None) -> None:
+    """CLI wrapper for addressing PR comments using Mistral Vibe."""
+    _run_pr_comment_workflow(
+        argv,
+        _address_pr_comments_with_mistral_vibe,
+        "Mistral Vibe",
         default_timeout=180,
     )
 
