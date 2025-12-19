@@ -1,34 +1,34 @@
 # AI Workflow Tools
 
-Automation helpers that wire together git, GitHub, and external AI coding assistants.
-Each subdirectory is self-contained, depends only on the Python stdlib plus CLI tools
-like `gh`, `llm`, `kilocode`, and `claude`, and can be run via `uv` or as an executable script.
+Automation helpers that wire together git, GitHub, and AI coding assistants. Each subdirectory is self-contained, depends only on the Python standard library plus CLI tools such as `gh`, `llm`, `kilocode`, `claude`, `codex`, `amp`, and `vibe`, and can be run with `uv` or as an executable script.
 
 ## Layout
 
-- `autocoder_utils/`: Shared Python helpers used by the Kilocode/Claude flows (see [Autocoder Utils](#autocoder-utils) below).
+- `amp/`: Headless Amp workflows for fixing issues and addressing PR comments.
+- `autocoder_utils/`: Shared Python helpers used by the Kilocode, Claude, Codex, Amp, and change-tracker flows (see the Autocoder Utils section below).
 - `change-tracker/`: Git changelog generator used by the scheduled workflow.
-- `gh-pr-helper/`: Standalone formatter that fetches and prints PR review comments.
-- `kilocode/`: Scripts that orchestrate Kilocode workflows along with git and GitHub.
 - `claude/`: Executable shims for running the Claude workflows.
 - `codex/`: Executable shims for the Codex workflows.
+- `gh-pr-helper/`: Formatter that fetches and prints PR review comments; consumed by the PR comment helpers.
+- `kilocode/`: Scripts that orchestrate Kilocode workflows together with git and GitHub helpers.
 
 ## Requirements
 
 Install the following CLIs and ensure they are available on `PATH`:
 
-- `uv` (for running these tools)
+- `uv` (for running the tools)
 - `git`
 - `gh` (GitHub CLI, authenticated with the target repo)
 - `llm`
-- `kilocode` (Kilocode automation)
-- `claude` (Claude automation)
-- `codex` (ChatGPT Codex CLI)
-- `vibe` (Mistral Vibe CLI)
+- `kilocode`
+- `claude`
+- `codex`
+- `amp`
+- `vibe`
 
 Environment variables:
 
-- `OPENAI_API_KEY` must be set (used by `llm`)
+- `OPENAI_API_KEY` must be set (used by `llm` and other helpers)
 - Optional `LLM_MODEL` override (defaults to `gpt-5-nano`)
 
 Repository assumptions:
@@ -36,28 +36,9 @@ Repository assumptions:
 - Commands run inside a git repository whose default branch is `main`
 - Remote name `origin` exists (used for `git log origin/main..`)
 
-## Installation
+## Running flows
 
-Run directly from the repo without installing:
-   ```bash
-   uv tool run --from ./ fix-issue-with-kilocode 123
-   uv tool run --from ./ address-pr-comments-with-kilocode 456
-   uv tool run --from ./ fix-issue-with-claude 789
-   uv tool run --from ./ address-pr-comments-with-claude 1011
-   uv tool run --from ./ fix-issue-with-codex 1213
-   uv tool run --from ./ address-pr-comments-with-codex 1415
-   uv tool run --from ./ fix-issue-with-mistral-vibe 1617
-   uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
-   uv tool run --from ./ gh-pr-helper owner/repo/pull/42
-   uv tool run --from ./ generate-changelog
-   ```
-
-
-## uv project
-
-A single `pyproject.toml` lives at `pyproject.toml`, so every script
-shares the same environment. Each tool exposes a console entry point that `uv`
-can resolve, so the preferred workflow is:
+Each helper exposes a console entry point that `uv` can resolve, so the simplest invocation pattern is:
 
 ```bash
 uv tool run --from ./ fix-issue-with-kilocode 123
@@ -66,20 +47,19 @@ uv tool run --from ./ fix-issue-with-claude 789
 uv tool run --from ./ address-pr-comments-with-claude 1011
 uv tool run --from ./ fix-issue-with-codex 1213
 uv tool run --from ./ address-pr-comments-with-codex 1415
-uv tool run --from ./ fix-issue-with-mistral-vibe 1617
-uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
+uv tool run --from ./ fix-issue-with-amp 1617
+uv tool run --from ./ address-pr-comments-with-amp 1819
+uv tool run --from ./ fix-issue-with-mistral-vibe 2021
+uv tool run --from ./ address-pr-comments-with-mistral-vibe 2223
 uv tool run --from ./ gh-pr-helper owner/repo/pull/42
 uv tool run --from ./ generate-changelog
 ```
 
-Every script also retains its executable shebang, so you may invoke them
-directly via `.//...` if you prefer.
+Every script also retains its executable shebang, so you may run them directly via `.//<dir>/<script>` if that is more convenient.
 
 ## Change tracker
 
-`change-tracker/generate-changelog.py` walks git history, computes stats,
-and writes daily markdown changelog entries under `changes/`. It is used by the
-`generate-changelog.yml` GitHub Action but may also be run manually:
+`change-tracker/generate-changelog.py` walks git history, computes stats, and writes daily markdown entries under `changes/`. It backs the `generate-changelog.yml` GitHub Action but can also be run manually:
 
 ```bash
 uv tool run --from ./ generate-changelog
@@ -89,183 +69,128 @@ uv tool run --from ./ generate-changelog
 
 ### `fix-issue-with-kilocode`
 
-Given an issue number, the script fetches the issue via `gh`, generates a branch
-name prefixed with `fix-kilocode/<issue>`, runs `kilocode --auto` with the issue
-details, stages/commits changes, pushes the branch, and opens a PR using content
-generated by `llm`.
+Given an issue number, the helper:
+
+- fetches the issue via `gh`
+- creates a branch named `fix-kilocode/<issue>`
+- runs `kilocode --auto` with the issue details
+- stages and commits the edits
+- pushes the branch and opens a PR with `llm`-generated content
 
 Usage:
 
 ```bash
-uvx --refresh --from ./ fix-issue-with-kilocode 123 --timeout off
-# or 
 uv tool run --from ./ fix-issue-with-kilocode 123
-# or, after installing the package:
-uv tool run fix-issue-with-kilocode 123
-# or invoke the script directly:
+uvx --refresh --from ./ fix-issue-with-kilocode 123 --timeout off
 .//kilocode/fix-issue-with-kilocode 123
 ```
 
 ### `address-pr-comments-with-kilocode`
 
-Automates addressing review comments on an existing PR. It identifies the PR
-branch, checks it out, pulls the latest changes, collects PR comments via
-`gh-pr-helper/gh-pr-helper`, feeds them to `kilocode --auto`, stages
-and commits the updates with an AI-generated message, and pushes.
-
-Usage:
+Pulls the PR branch, gathers comments via `gh-pr-helper`, feeds them to `kilocode --auto`, stages the updates, and pushes with an AI-generated message.
 
 ```bash
 uv tool run --from ./ address-pr-comments-with-kilocode 456
-```
-
-## Autocoder Utils
-
-This package provides shared utilities for AI-powered coding automation tools in the ai-tools directory.
-
-### Overview
-
-The `autocoder_utils` module contains common helper functions used by various AI coding automation scripts, including:
-
-- Command availability checking
-- Environment setup (API keys, LLM configuration)
-- Git operations (staging, checking for changes, repository metadata)
-- Subprocess execution with error handling
-
-### Functions
-
-#### Command and Environment
-
-- `check_commands_available(required)`: Verify that required CLI tools are installed
-- `ensure_env()`: Ensure required environment variables are set
-
-#### Git Operations
-
-- `stage_changes()`: Stage all changes with `git add -A`
-- `has_staged_changes()`: Check if there are staged changes
-- `get_repo_root()`: Get the root directory of the git repository
-- `get_owner_repo()`: Extract owner and repository name from git remote URL
-
-#### Utilities
-
-- `run(cmd, input_text=None, capture_output=True)`: Execute a command with proper error handling
-
-### Usage
-
-```python
-from autocoder_utils import check_commands_available, ensure_env, run
-
-# Check for required tools
-check_commands_available(["gh", "llm", "kilocode"])
-
-# Ensure environment is set up
-ensure_env()
-
-# Run a command
-output = run(["git", "status"])
-```
-
-### Dependencies
-
-This module has no external dependencies beyond Python's standard library.
-
-### Testing
-
-Tests for autocoder_utils are located in `tests/test_autocoder_utils.py` and can be run with:
-
-```bash
-uv run pytest tests/test_autocoder_utils.py
-```
-
-Additional tests for gh_pr_helper are located in `tests/test_gh_pr_helper.py`:
-
-```bash
-uv run pytest tests/test_gh_pr_helper.py
 ```
 
 ## Claude tool
 
 ### `fix-issue-with-claude`
 
-Mirrors the Kilocode issue workflow but uses the `claude` CLI. It creates a
-branch named `fix-claude/<issue>...`, runs `claude` with the issue content,
-stages/commits the changes, pushes, and raises a PR.
-
-Usage:
+Mirrors the Kilocode issue workflow but runs `claude` in headless mode, saving resumable session data under `paige/`.
 
 ```bash
-uv tool run --from ./ fix-issue-with-claude 123
+uv tool run --from ./ fix-issue-with-claude 789
 ```
 
 ### `address-pr-comments-with-claude`
 
-Runs the PR comment workflow but drives the Claude headless CLI. It reads PR
-feedback, prepares condensed instructions, passes them to Claude, stages and
-commits updates, and pushes them upstream.
+Condenses PR feedback, streams instructions to Claude, stages the edits, and pushes the updates.
+
+```bash
+uv tool run --from ./ address-pr-comments-with-claude 1011
+```
+
+## Amp tool
+
+### `fix-issue-with-amp`
+
+Runs Amp headless (`amp -x`) against the target issue, creates a `fix-amp/<issue>` branch, applies edits, runs relevant tests, and finishes with a summary.
+
+```bash
+uv tool run --from ./ fix-issue-with-amp 1617
+```
+
+### `address-pr-comments-with-amp`
+
+Summarizes outstanding PR comments, feeds the instructions to `amp -x`, stages the resulting changes, and pushes them back to the branch.
+
+```bash
+uv tool run --from ./ address-pr-comments-with-amp 1819
+```
 
 ## Mistral Vibe tool
 
-Both Mistral Vibe workflows call `vibe --prompt "<issue or PR context>"`, so ensure
-the `vibe` CLI is authenticated before running them.
+Both Vibe workflows call `vibe --prompt "<issue or PR context>"`, so ensure the `vibe` CLI is authenticated before running them.
 
 ### `fix-issue-with-mistral-vibe`
 
-Identical to the Kilocode/Claude issue helpers but shells out to `vibe`. It
-collects the issue context, generates or selects a `fix-mistral-vibe/<issue>` branch,
-invokes:
+Creates `fix-mistral-vibe/<issue>`, streams the issue text to Vibe, stages the edits, and opens a PR.
 
 ```bash
-vibe --prompt "You are Mistral Vibe running headless. …"
-```
-
-with the issue text, then stages, commits, pushes, and opens a PR.
-
-Usage:
-
-```bash
-uv tool run --from ./ fix-issue-with-mistral-vibe 1617
+uv tool run --from ./ fix-issue-with-mistral-vibe 2021
 ```
 
 ### `address-pr-comments-with-mistral-vibe`
 
-Runs the PR comments workflow but pipes the generated change instructions to
-`vibe --prompt`. After Vibe finishes, the helper stages the edits, AI-generates
-a commit message, and pushes back to the PR branch.
-
-Usage:
+Summarizes PR comments for Vibe, runs the prompt, stages the edits, and pushes the branch.
 
 ```bash
-uv tool run --from ./ address-pr-comments-with-mistral-vibe 1819
-```
-
-Usage:
-
-```bash
-uv tool run --from ./ address-pr-comments-with-claude 456
+uv tool run --from ./ address-pr-comments-with-mistral-vibe 2223
 ```
 
 ## Codex tools
 
 ### `fix-issue-with-codex`
 
-Behaves like the Claude issue workflow but uses `codex exec` in headless mode
-(`--full-auto --sandbox danger-full-access`). Issue content is piped to Codex so
-it can read the description, make edits, run tests, and summarize.
-
-Usage:
+Drives `codex exec --full-auto --sandbox danger-full-access -` to read the issue, edit the repository, run tests, and summarize the outcome.
 
 ```bash
-uv tool run --from ./ fix-issue-with-codex 123
+uv tool run --from ./ fix-issue-with-codex 1213
 ```
 
 ### `address-pr-comments-with-codex`
 
-Mirrors the Claude PR comment flow while driving Codex. Review feedback is
-condensed into precise instructions that Codex consumes via stdin before making
-changes, staging, committing, and pushing updates.
-
-Usage:
+Feeds PR comments into Codex headless mode, stages the changes, and pushes them back to the PR.
 
 ```bash
-uv tool run --from ./ address-pr-comments-with-codex 456
+uv tool run --from ./ address-pr-comments-with-codex 1415
+```
+
+## Autocoder Utils
+
+Provides shared helpers for the AI workflows, covering command availability, environment setup, git operations, and subprocess handling.
+
+### Key functions
+
+- `check_commands_available(required)`
+- `ensure_env()`
+- `stage_changes()`, `has_staged_changes()`, `get_repo_root()`, `get_owner_repo()`
+- `run(cmd, input_text=None, capture_output=True)`
+
+### Testing
+
+`tests/test_autocoder_utils.py` exercises the helpers, and `tests/test_gh_pr_helper.py` covers the PR comment formatter. Run them with:
+
+```bash
+uv run pytest tests/test_autocoder_utils.py
+uv run pytest tests/test_gh_pr_helper.py
+```
+
+## gh-pr-helper
+
+Fetches review and issue comments via `gh` and formats them for the workflows. Invoke it directly when you need the comment dump:
+
+```bash
+uv tool run --from ./ gh-pr-helper owner/repo/pull/42
 ```
